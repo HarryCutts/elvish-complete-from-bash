@@ -2,36 +2,29 @@ use path
 use str
 
 fn import-for {|command| 
+  var script = '
+    source /usr/share/bash-completion/bash_completion
+    source /usr/share/bash-completion/completions/'$command'
+
+    COMP_WORDS=("$@")
+    COMP_CWORD="$((${#COMP_WORDS[@]} - 1))"
+    COMP_LINE="$@"
+    COMP_POINT=${#COMP_LINE}
+    COMP_TYPE=9
+    COMP_KEY=9
+
+    if [[ "$COMP_CWORD" -gt 0 ]]; then
+      _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}" "${COMP_WORDS[$((COMP_CWORD - 1))]}"
+    else
+      _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}"
+    fi
+
+    for reply in ${COMPREPLY[@]}; do
+      echo $reply
+    done
+  '
   set edit:completion:arg-completer[$command] = {|@args|
     # TODO: swallow annoying error message as output by dd completer or systemctl status
-    var script = '
-      source /usr/share/bash-completion/bash_completion
-      source /usr/share/bash-completion/completions/'$command'
-
-      COMP_WORDS=("$@")
-      COMP_CWORD="$((${#COMP_WORDS[@]} - 1))"
-      COMP_LINE="$@"
-      COMP_POINT=${#COMP_LINE}
-      COMP_TYPE=9
-      COMP_KEY=9
-
-      #local logfile="/tmp/completion-log.txt"
-      #echo "COMP_WORDS:" >> $logfile
-      #for i in ${!COMP_WORDS[@]}; do echo ${COMP_WORDS[$i]} >> $logfile; done
-      #echo "COMP_CWORD:" $COMP_CWORD >> $logfile
-      #echo "COMP_LINE:" $COMP_LINE >> $logfile
-      #echo "COMP_POINT:" $COMP_POINT >> $logfile
-
-      if [[ "$COMP_CWORD" -gt 0 ]]; then
-        _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}" "${COMP_WORDS[$((COMP_CWORD - 1))]}"
-      else
-        _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}"
-      fi
-
-      for reply in ${COMPREPLY[@]}; do
-        echo $reply
-      done
-    '
     # TODO: --norc and --noprofile?
     var replies = [(echo $script | bash -s $@args)]
     put $@replies
@@ -57,7 +50,8 @@ fn -list-externals {
 
 fn -locate-completions {
   var completions = [&]
-  # TODO: handle multiple dirs as described by the bash-completion docs (https://github.com/scop/bash-completion/tree/main?tab=readme-ov-file#faq:~:text=zsh.org/.-,Q.%20What%20is%20the%20search%20order%20for%20the%20completion%20file%20of%20each%20target%20command%3F,-A.%20The%20completion)
+  # TODO: handle multiple dirs as described by the bash-completion docs
+  # (https://github.com/scop/bash-completion/tree/main?tab=readme-ov-file#faq:~:text=zsh.org/.-,Q.%20What%20is%20the%20search%20order%20for%20the%20completion%20file%20of%20each%20target%20command%3F,-A.%20The%20completion)
   var completions-dir = /usr/share/bash-completion/completions/
   # Look for <command>.bash files first then override them if a <command> file exists, since it
   # appears that <command> takes precedence over <command>.bash in bash-completion.
@@ -74,8 +68,10 @@ fn -locate-completions {
 }
 
 fn autoimport {
-  # TODO: include eagerly-loaded completions (which it sounds like take precedence over the lazily-loaded ones)
-  #   * Source all the files in the compatdir (`pkg-config --variable=compatdir bash-completion`) and then ~/.bash_completion
+  # TODO: include eagerly-loaded completions (which it sounds like take precedence over the
+  # lazily-loaded ones)
+  #   * Source all the files in the compatdir (`pkg-config --variable=compatdir bash-completion`)
+  #     and then ~/.bash_completion
   #   * Run `complete` to get a list of all the current completions
   var completions = (-locate-completions)
   for command [(-list-externals)] {
