@@ -9,7 +9,7 @@ fn import-for {|command|
       source /usr/share/bash-completion/completions/'$command'
 
       COMP_WORDS=("$@")
-      COMP_CWORD='(- (count $args) 1)'
+      COMP_CWORD="$((${#COMP_WORDS[@]} - 1))"
       COMP_LINE="$@"
       COMP_POINT=${#COMP_LINE}
       COMP_TYPE=9
@@ -22,8 +22,11 @@ fn import-for {|command|
       #echo "COMP_LINE:" $COMP_LINE >> $logfile
       #echo "COMP_POINT:" $COMP_POINT >> $logfile
 
-      # TODO: $2 should be the word being completed, and $3 should be the word before (https://www.gnu.org/software/bash/manual/html_node/Programmable-Completion-Builtins.html#:~:text=%2DF%20option.-,%2DF%20function,-The%20shell%20function)
-      _'$command' '$command'
+      if [[ "$COMP_CWORD" -gt 0 ]]; then
+        _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}" "${COMP_WORDS[$((COMP_CWORD - 1))]}"
+      else
+        _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}"
+      fi
 
       for reply in ${COMPREPLY[@]}; do
         echo $reply
