@@ -42,11 +42,13 @@ fn -list-externals {
   var externals = [&]
   for dir $paths {
     for f [$dir/*[nomatch-ok]] {
-      # TODO: use os:is-dir instead once Elvish 0.20.0 comes to Debian
-      # TODO: this call adds ~300ms to the runtime, and just eliminates a few directories on my machine (/usr/bin/flutter/, /bin/flutter/, /usr/bin/flutter/bin/{cache internal}). Consider getting rid of it or optimizing
-      if (not (path:is-dir $f)) {
-        set externals[(path:base $f)] = $true
-      }
+      # TODO: using [type:regular] on the wildcard above _should_ just exclude directories, but it
+      # also seems to exclude symlinks. I should check if this is still an issue in the latest
+      # Elvish and report it if so. In the meantime, including directories isn't the end of the
+      # world; at worst, it'll just mean a completer or two gets loaded unnecessarily.
+      #
+      # (Using path:is-dir instead adds ~300ms to the runtime, which isn't worth it.)
+      set externals[(path:base $f)] = $true
     }
   }
 
