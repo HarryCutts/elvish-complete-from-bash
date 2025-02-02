@@ -11,7 +11,7 @@ fn import-for {|command|
 
     COMP_WORDS=("$@")
     COMP_CWORD="$((${#COMP_WORDS[@]} - 1))"
-    COMP_LINE="$@"
+    COMP_LINE="$*"
     COMP_POINT=${#COMP_LINE}
     COMP_TYPE=9
     COMP_KEY=9
@@ -22,8 +22,8 @@ fn import-for {|command|
       _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}"
     fi
 
-    for reply in ${COMPREPLY[@]}; do
-      echo $reply
+    for reply in "${COMPREPLY[@]}"; do
+      echo "$reply"
     done
   '
   set edit:completion:arg-completer[$command] = {|@args|
