@@ -1,6 +1,9 @@
 use path
 use str
 
+# For debugging purposes, set this to a file to receive stderr output from the completion script.
+var -completer-stderr = /dev/null
+
 fn import-for {|command| 
   var script = '
     source /usr/share/bash-completion/bash_completion
@@ -24,9 +27,7 @@ fn import-for {|command|
     done
   '
   set edit:completion:arg-completer[$command] = {|@args|
-    # TODO: swallow annoying error message as output by dd completer or systemctl status
-    # TODO: --norc and --noprofile?
-    var replies = [(echo $script | bash -s $@args)]
+    var replies = [(echo $script | bash --norc --noprofile -s $@args stderr> $-completer-stderr)]
     put $@replies
   }
 }
