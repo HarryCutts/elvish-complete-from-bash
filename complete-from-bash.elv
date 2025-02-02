@@ -51,6 +51,7 @@ fn -list-externals {
 
 fn -locate-completions {
   var completions = [&]
+  # TODO: don't assume the completions are in the Debian default location
   # TODO: handle multiple dirs as described by the bash-completion docs
   # (https://github.com/scop/bash-completion/tree/main?tab=readme-ov-file#faq:~:text=zsh.org/.-,Q.%20What%20is%20the%20search%20order%20for%20the%20completion%20file%20of%20each%20target%20command%3F,-A.%20The%20completion)
   var completions-dir = /usr/share/bash-completion/completions/
