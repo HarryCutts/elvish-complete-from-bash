@@ -36,13 +36,14 @@ Bash:
 set edit:completion:arg-completer[foo] = $my-foo-completer~
 use some/other/completion/module
 
+# ...then auto-import everything else from Bash
 use github.com/HarryCutts/elvish-complete-from-bash/complete-from-bash
 complete-from-bash:autoimport
 ```
 
 Alternatively, you can import a specific completer using `import-for`:
 
-```
+```elvish
 use github.com/HarryCutts/elvish-complete-from-bash/complete-from-bash
 complete-from-bash:import-for apt
 ```
