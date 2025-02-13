@@ -4,10 +4,12 @@ use str
 # For debugging purposes, set this to a file to receive stderr output from the completion script.
 var -completer-stderr = /dev/null
 
-fn import-for {|command| 
+fn import-for {|command &from-file=$nil|
+  # TODO: stop assuming that the completion function will be _$command
+  var comp-file-path = (coalesce $from-file /usr/share/bash-completion/completions/$command)
   var script = '
     source /usr/share/bash-completion/bash_completion
-    source /usr/share/bash-completion/completions/'$command'
+    source '$comp-file-path'
 
     COMP_WORDS=("$@")
     COMP_CWORD="$((${#COMP_WORDS[@]} - 1))"
@@ -82,7 +84,7 @@ fn autoimport {
     }
 
     if (has-key $completions $command) {
-      import-for $command
+      import-for $command &from-file=$completions[$command]
     }
   }
 }
