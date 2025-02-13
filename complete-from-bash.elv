@@ -1,12 +1,32 @@
+use flag
 use path
 use str
 
 # For debugging purposes, set this to a file to receive stderr output from the completion script.
 var -completer-stderr = /dev/null
 
-fn import-for {|command &from-file=$nil|
-  # TODO: stop assuming that the completion function will be _$command
+var -bash-complete-getopt-specs = [
+  # Arguments to the `complete` Bash builtin taken from `man 7 bash-builtins`.
+  (each {|no-arg-flag| put [&short=$no-arg-flag]} abcdefgjksuvDEI)
+  (each {|arg-flag| put [&short=$arg-flag &arg-required]} oAGWFCXPS)
+]
+
+fn -get-completion-fn-name {|command comp-file-path|
+  var script = '
+    source /usr/share/bash-completion/bash_completion
+    source '$comp-file-path'
+    complete -p '$command'
+  '
+  var bash-complete-command = (echo $script | bash --norc --noprofile -s stderr>> $-completer-stderr)
+  var options _ = (flag:parse-getopt [(str:split ' ' $bash-complete-command)] $-bash-complete-getopt-specs)
+  # TODO: use keep-if once Elvish 0.21 comes to Debian
+  var function-opt = (each {|opt| if (eq $opt[spec][short] F) { put $opt } } $options)
+  put $function-opt[arg]
+}
+
+fn import-for {|command &from-file=$nil &fn-name=$nil|
   var comp-file-path = (coalesce $from-file /usr/share/bash-completion/completions/$command)
+  var comp-fn-name = (if $fn-name { put _$fn-name } else { -get-completion-fn-name $command $comp-file-path })
   var script = '
     source /usr/share/bash-completion/bash_completion
     source '$comp-file-path'
@@ -19,9 +39,9 @@ fn import-for {|command &from-file=$nil|
     COMP_KEY=9
 
     if [[ "$COMP_CWORD" -gt 0 ]]; then
-      _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}" "${COMP_WORDS[$((COMP_CWORD - 1))]}"
+      '$comp-fn-name' '$command' "${COMP_WORDS[$COMP_CWORD]}" "${COMP_WORDS[$((COMP_CWORD - 1))]}"
     else
-      _'$command' '$command' "${COMP_WORDS[$COMP_CWORD]}"
+      '$comp-fn-name' '$command' "${COMP_WORDS[$COMP_CWORD]}"
     fi
 
     for reply in "${COMPREPLY[@]}"; do
@@ -29,7 +49,7 @@ fn import-for {|command &from-file=$nil|
     done
   '
   set edit:completion:arg-completer[$command] = {|@args|
-    var replies = [(echo $script | bash --norc --noprofile -s $@args stderr> $-completer-stderr)]
+    var replies = [(echo $script | bash --norc --noprofile -s $@args stderr>> $-completer-stderr)]
     put $@replies
   }
 }
@@ -84,7 +104,15 @@ fn autoimport {
     }
 
     if (has-key $completions $command) {
-      import-for $command &from-file=$completions[$command]
+      # Importing each completion immediately would take too long (seconds), due to having to source
+      # the completion file to find out what completion function to call. Instead, lazily import the
+      # completion when it's first used.
+      set edit:completion:arg-completer[$command] = {|cmd @args|
+        # We can't use $command within this function since Elvish captures by reference, so it will
+        # have moved on to another name by the time the completer's executed. Use $cmd instead.
+        import-for $cmd &from-file=$completions[$cmd]
+        $edit:completion:arg-completer[$cmd] $cmd $@args
+      }
     }
   }
 }
