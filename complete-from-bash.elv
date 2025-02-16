@@ -11,22 +11,33 @@ var -bash-complete-getopt-specs = [
   (each {|arg-flag| put [&short=$arg-flag &arg-required]} oAGWFCXPS)
 ]
 
-fn -get-completion-fn-name {|command comp-file-path|
+fn -get-completion-info {|command comp-file-path|
   var script = '
     source /usr/share/bash-completion/bash_completion
     source '$comp-file-path'
     complete -p '$command'
   '
   var bash-complete-command = (echo $script | bash --norc --noprofile -s stderr>> $-completer-stderr)
+  # `bash-complete-command` now contains the Bash command used to register the completion, e.g.
+  # `complete -o bashdefault -o default -o nospace -F __git_wrap__git_main git`, which we can parse.
   var options _ = (flag:parse-getopt [(str:split ' ' $bash-complete-command)] $-bash-complete-getopt-specs)
-  # TODO: use keep-if once Elvish 0.21 comes to Debian
-  var function-opt = (each {|opt| if (eq $opt[spec][short] F) { put $opt } } $options)
-  put $function-opt[arg]
+  var comp-options = [&]
+  var function-name = $nil
+  for opt $options {
+    var short = $opt[spec][short]
+    if (eq $short F) {
+      set function-name = $opt[arg]
+    } elif (eq $short o) {
+      set comp-options[$opt[arg]] = $true
+    }
+  }
+  put $function-name $comp-options
 }
 
-fn import-for {|command &from-file=$nil &fn-name=$nil|
+fn import-for {|command &from-file=$nil|
   var comp-file-path = (coalesce $from-file /usr/share/bash-completion/completions/$command)
-  var comp-fn-name = (if $fn-name { put _$fn-name } else { -get-completion-fn-name $command $comp-file-path })
+  var comp-fn-name comp-options = (-get-completion-info $command $comp-file-path)
+  var strip-spaces = (has-key $comp-options nospace)
   var script = '
     source /usr/share/bash-completion/bash_completion
     source '$comp-file-path'
@@ -48,9 +59,26 @@ fn import-for {|command &from-file=$nil &fn-name=$nil|
       echo "$reply"
     done
   '
+  fn put-replies {
+    each {|reply|
+      if (str:has-suffix $reply '=') {
+        # Avoid Elvish quoting long options completed with an =, by moving the equals to the
+        # code-suffix of a complex-candidate.
+        edit:complex-candidate &code-suffix='=' &display=$reply (str:trim-suffix $reply '=')
+      } elif $strip-spaces {
+        # Some Bash completers, such as for `git`, set `-o nospace` so that they can only add spaces
+        # to the end of some completion candidates. This causes Elvish to quote the completion with
+        # the extra space, resulting in a line such as `git 'status '`, which is invalid. By
+        # default, Elvish doesn't add a space to the end of completion candidates anyway, so just
+        # strip the extra whitespace.
+        str:trim-space $reply
+      } else {
+        put $reply
+      }
+    }
+  }
   set edit:completion:arg-completer[$command] = {|@args|
-    var replies = [(echo $script | bash --norc --noprofile -s $@args stderr>> $-completer-stderr)]
-    put $@replies
+    echo $script | bash --norc --noprofile -s $@args stderr>> $-completer-stderr | put-replies
   }
 }
 
